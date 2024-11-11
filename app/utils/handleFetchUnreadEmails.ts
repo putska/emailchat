@@ -2,15 +2,37 @@
 
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
-import { getTokens } from "../utils/tokens"; // Update path based on your setup
+import { getTokens, refreshToken } from "../utils/tokens"; // Update path based on your setup
 
-export async function handleFetchUnreadEmails(params: any) {
-  const tokens = getTokens(); // Retrieve tokens as before
-  if (!tokens || !tokens.access_token) {
+interface FetchUnreadEmailsParams {
+  number_of_emails?: number;
+}
+
+export async function handleFetchUnreadEmails(params: FetchUnreadEmailsParams) {
+  console.log("Entering handleFetchUnreadEmails");
+  // Retrieve tokens, awaiting the async function
+  let tokens;
+  try {
+    tokens = await getTokens();
+  } catch (error) {
+    console.error("Error retrieving tokens:", error);
     return NextResponse.json(
-      { error: "User not authenticated" },
+      { error: "User not authenticated. Please re-authenticate." },
       { status: 401 }
     );
+  }
+
+  // Check if access token is missing, and refresh if needed
+  if (!tokens.access_token) {
+    try {
+      tokens = await refreshToken();
+    } catch (error) {
+      console.error("Error refreshing access token:", error);
+      return NextResponse.json(
+        { error: "User not authenticated. Please re-authenticate." },
+        { status: 401 }
+      );
+    }
   }
 
   const oauth2Client = new google.auth.OAuth2(

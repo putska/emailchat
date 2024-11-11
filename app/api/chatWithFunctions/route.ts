@@ -15,7 +15,7 @@ const openai = new OpenAI({
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
-
+    console.log("messages: ", messages);
     // Make the call to OpenAI's GPT-4 model
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -88,7 +88,50 @@ export async function POST(req: NextRequest) {
             strict: true,
           },
         },
+        {
+          type: "function",
+          function: {
+            name: "block_email_sender",
+            description:
+              "Block emails from a specific domain by moving them to Trash",
+            parameters: {
+              type: "object",
+              required: ["domain"],
+              properties: {
+                domain: {
+                  type: "string",
+                  description:
+                    "The domain of the sender to block (e.g., example.com)",
+                },
+              },
+              additionalProperties: false,
+            },
+            strict: true,
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "archive_email_sender",
+            description:
+              "Archive emails from a specific domain by removing them from Inbox",
+            parameters: {
+              type: "object",
+              required: ["domain"],
+              properties: {
+                domain: {
+                  type: "string",
+                  description:
+                    "The domain of the sender to archive (e.g., example.com)",
+                },
+              },
+              additionalProperties: false,
+            },
+            strict: true,
+          },
+        },
       ],
+
       parallel_tool_calls: true,
       response_format: {
         type: "text",
@@ -96,18 +139,70 @@ export async function POST(req: NextRequest) {
     });
 
     const data = response;
-    console.log(data);
-    const functionCall = (data as any)?.function_call;
-    if (functionCall) {
-      const { name, parameters } = functionCall;
-      console.log("name: ", name);
-      console.log("parameters: ", parameters);
-      // Route based on action
-      if (name === "fetch_unread_emails") {
-        return handleFetchUnreadEmails(parameters);
-      } else if (name === "send_reply") {
-        return handleSendReply(parameters);
+    console.log("response data: ", data);
+    const toolCalls = data.choices?.[0]?.message?.tool_calls;
+    if (toolCalls && toolCalls.length > 0) {
+      // Extract the first tool call
+      const functionCall = toolCalls[0];
+      // ensure the type is "function" before proceeding
+      if (functionCall.type === "function") {
+        const functionName = functionCall.function?.name;
+        const functionArgs = functionCall.function?.arguments
+          ? JSON.parse(functionCall.function.arguments)
+          : {};
+        console.log("Function Name:", functionName);
+        console.log("Function Arguments:", functionArgs);
+        // Route based on function name
+        if (functionName === "fetch_unread_emails") {
+          return handleFetchUnreadEmails(functionArgs);
+        } else if (functionName === "send_reply") {
+          return handleSendReply(functionArgs);
+        } else if (functionName === "block_email_sender") {
+          console.log("Block email sender function detected.");
+          const domain = functionArgs.domain;
+          const blockResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_BASE_URL}/api/blockemail/${domain}`,
+            { method: "POST" }
+          );
+
+          if (!blockResponse.ok) {
+            console.error(
+              "Failed to block sender:",
+              await blockResponse.text()
+            );
+            return NextResponse.json(
+              { error: "Failed to block sender" },
+              { status: 500 }
+            );
+          }
+
+          return NextResponse.json({
+            message: `Sender from ${domain} blocked successfully.`,
+          });
+        } else if (functionName === "archive_email_sender") {
+          console.log("Archive email sender function detected.");
+          const domain = functionArgs.domain;
+          const archiveResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_BASE_URL}/api/clearemail/${domain}`,
+            { method: "POST" }
+          );
+          if (!archiveResponse.ok) {
+            console.error(
+              "Failed to archive sender:",
+              await archiveResponse.text()
+            );
+            return NextResponse.json(
+              { error: "Failed to archive sender" },
+              { status: 500 }
+            );
+          }
+          return NextResponse.json({
+            message: `Sender from ${domain} archived successfully.`,
+          });
+        }
       }
+    } else {
+      console.log("No function call detected in response.");
     }
 
     // Send back the response in JSON format

@@ -16,6 +16,7 @@ export async function GET() {
       "https://www.googleapis.com/auth/gmail.send",
     ],
   });
-
-  return NextResponse.redirect(authUrl);
+  console.log("authUrl: ", authUrl);
+  //return NextResponse.redirect(authUrl);
+  return NextResponse.json({ authUrl });
 }

@@ -4,18 +4,24 @@ import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { getTokens } from "../utils/tokens"; // Update path based on your setup
 
+interface SendReplyParams {
+  email_address: string;
+  reply_message: string;
+  subject: string;
+}
+
 export async function handleSendReply({
   email_address,
   reply_message,
   subject,
-}: any) {
+}: SendReplyParams) {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.NEXT_PUBLIC_REDIRECT_URI
   );
 
-  const tokens = getTokens(); // Retrieve tokens as before
+  const tokens = await getTokens(); // Retrieve tokens as before
   if (!tokens) {
     return NextResponse.json(
       { error: "User not authenticated" },

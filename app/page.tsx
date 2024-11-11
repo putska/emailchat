@@ -11,6 +11,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useRecordVoice } from "@/hooks/useRecordVoice";
+import AuthButton from "@/components/AuthButton";
+
+// Define the type for an email
+type Email = {
+  from: string;
+  subject: string;
+  snippet: string;
+};
 
 export default function Chat() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>(
@@ -19,7 +27,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [useTTS, setUseTTS] = useState(false);
-  const [emails, setEmails] = useState<any[]>([]);
+  const [emails, setEmails] = useState<Email[]>([]); // Use the Email type here
 
   // Using the useRecordVoice hook for voice input
   const { recording, startRecording, stopRecording, text } = useRecordVoice();
@@ -43,14 +51,14 @@ export default function Chat() {
     setInput(""); // Clear the input field
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch("/api/chatWithFunctions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: [...messages, userMessage] }),
       });
 
       const data = await response.json();
-
+      console.log("data in front end: ", data);
       // Check if response contains an array of emails
       if (
         Array.isArray(data) &&
@@ -151,6 +159,7 @@ export default function Chat() {
       <Button onClick={() => (recording ? stopRecording() : startRecording())}>
         {recording ? "Stop Recording" : "Record with Microphone"}
       </Button>
+      <AuthButton />
 
       <form
         onSubmit={handleFormSubmit}

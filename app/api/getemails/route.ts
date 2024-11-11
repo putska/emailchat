@@ -5,8 +5,8 @@ import { NextResponse } from "next/server";
 import { getTokens } from "../../utils/tokens";
 
 export async function GET() {
-  const tokens = getTokens();
-  if (!tokens || !tokens.access_token) {
+  const tokens = await getTokens();
+  if (!tokens.refresh_token || !tokens.access_token) {
     return NextResponse.json(
       { error: "User not authenticated" },
       { status: 401 }
