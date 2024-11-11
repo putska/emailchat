@@ -37,6 +37,18 @@ export default function Chat() {
     setInput(text);
   }
 
+  const formatEmailsForOpenAI = (emails: Email[]) => {
+    let emailSummary =
+      "Here are the first 5 emails in my inbox. Can we go through these one by one?\n\n";
+    emails.forEach((email, index) => {
+      emailSummary += `Email ${index + 1}:\n`;
+      emailSummary += `From: ${email.from}\n`;
+      emailSummary += `Subject: ${email.subject}\n`;
+      emailSummary += `Snippet: ${email.snippet}\n\n`;
+    });
+    return emailSummary;
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) =>
     setInput(e.target.value);
 
@@ -67,6 +79,37 @@ export default function Chat() {
         data[0]?.subject
       ) {
         setEmails(data); // set emails to state for displaying
+
+        // Format emails for OpenAI
+        const emailSummary = formatEmailsForOpenAI(data);
+        const botMessage = {
+          role: "assistant",
+          content: emailSummary,
+        };
+        setMessages((prevMessages) => [...prevMessages, botMessage]);
+
+        // Send this to openAI for further conversation
+        const response = await fetch("/api/chatWithFunctions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: [...messages, botMessage] }),
+        });
+
+        const openAIData = await response.json();
+        console.log("data in front end: ", openAIData);
+        if (openAIData.choices && openAIData.choices.length > 0) {
+          const botMessage = {
+            role: "assistant",
+            content: openAIData.choices[0].message.content,
+          };
+          setMessages((prevMessages) => [...prevMessages, botMessage]);
+
+          if (useTTS) {
+            await playTextAsSpeech(botMessage.content);
+          }
+        } else {
+          console.error("Unexpected API response:", openAIData);
+        }
       } else if (data.choices && data.choices.length > 0) {
         const botMessage = {
           role: "assistant",
