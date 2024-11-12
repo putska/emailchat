@@ -2,7 +2,7 @@
 
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
-import { getTokens, refreshToken } from "../utils/tokens"; // Update path based on your setup
+import { getTokens } from "../utils/tokens"; // Update path based on your setup
 
 interface FetchUnreadEmailsParams {
   number_of_emails?: number;
@@ -10,37 +10,30 @@ interface FetchUnreadEmailsParams {
 
 export async function handleFetchUnreadEmails(params: FetchUnreadEmailsParams) {
   console.log("Entering handleFetchUnreadEmails");
-  // Retrieve tokens, awaiting the async function
   let tokens;
   try {
-    tokens = await getTokens();
+    tokens = await getTokens(); // Use await here
   } catch (error) {
-    console.error("Error retrieving tokens:", error);
     return NextResponse.json(
-      { error: "User not authenticated. Please re-authenticate." },
+      { error: (error as Error).message },
       { status: 401 }
     );
   }
 
-  // Check if access token is missing, and refresh if needed
-  if (!tokens.access_token) {
-    try {
-      tokens = await refreshToken();
-    } catch (error) {
-      console.error("Error refreshing access token:", error);
-      return NextResponse.json(
-        { error: "User not authenticated. Please re-authenticate." },
-        { status: 401 }
-      );
-    }
-  }
+  const { access_token, refresh_token } = tokens;
 
+  if (!access_token || !refresh_token) {
+    return NextResponse.json(
+      { error: "User not authenticated" },
+      { status: 401 }
+    );
+  }
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.NEXT_PUBLIC_REDIRECT_URI
   );
-  oauth2Client.setCredentials(tokens);
+  oauth2Client.setCredentials({ access_token, refresh_token });
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
@@ -52,6 +45,7 @@ export async function handleFetchUnreadEmails(params: FetchUnreadEmailsParams) {
     });
 
     const messages = response.data.messages || [];
+
     const emailData = await Promise.all(
       messages.map(async (message) => {
         if (!message.id) return null;
@@ -60,7 +54,6 @@ export async function handleFetchUnreadEmails(params: FetchUnreadEmailsParams) {
           userId: "me",
           id: message.id,
         });
-
         return {
           id: message.id,
           snippet: msg.data.snippet,

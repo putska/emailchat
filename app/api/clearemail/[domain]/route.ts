@@ -1,20 +1,16 @@
-// src/app/api/archiveemail/[domain]/route.ts
+// src/app/api/clearemail/[domain]/route.ts
 import { google } from "googleapis";
 import { NextResponse, NextRequest } from "next/server";
 import { getTokens } from "../../../utils/tokens"; // Assume tokens retrieval
+import { cookies } from "next/headers";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { domain: string } }
 ) {
-  const { domain } = params;
-  if (!domain) {
-    return NextResponse.json({ error: "Domain is required" }, { status: 400 });
-  }
-
   let tokens;
   try {
-    tokens = await getTokens(req); // Pass the request to getTokens
+    tokens = await getTokens(); // Use await here
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },
@@ -29,6 +25,11 @@ export async function POST(
       { error: "User not authenticated" },
       { status: 401 }
     );
+  }
+
+  const { domain } = params;
+  if (!domain) {
+    return NextResponse.json({ error: "Domain is required" }, { status: 400 });
   }
 
   const oauth2Client = new google.auth.OAuth2(

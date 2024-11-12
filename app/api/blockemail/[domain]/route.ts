@@ -1,10 +1,10 @@
 // src/app/api/blockemail/[domain]/route.ts
 import { google } from "googleapis";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getTokens } from "../../../utils/tokens"; // Assume tokens retrieval
 
 export async function POST(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { domain: string } }
 ) {
   const { domain } = params;
@@ -12,8 +12,19 @@ export async function POST(
     return NextResponse.json({ error: "Domain is required" }, { status: 400 });
   }
 
-  const tokens = await getTokens();
-  if (!tokens) {
+  let tokens;
+  try {
+    tokens = await getTokens(); // Use await here
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 401 }
+    );
+  }
+
+  const { access_token, refresh_token } = tokens;
+
+  if (!access_token || !refresh_token) {
     return NextResponse.json(
       { error: "User not authenticated" },
       { status: 401 }
@@ -25,7 +36,7 @@ export async function POST(
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.NEXT_PUBLIC_REDIRECT_URI
   );
-  oauth2Client.setCredentials(tokens);
+  oauth2Client.setCredentials({ access_token, refresh_token });
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 

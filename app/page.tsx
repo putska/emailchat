@@ -15,6 +15,7 @@ import AuthButton from "@/components/AuthButton";
 
 // Define the type for an email
 type Email = {
+  id: string;
   from: string;
   subject: string;
   snippet: string;
@@ -42,6 +43,7 @@ export default function Chat() {
       "Here are the first 5 emails in my inbox. Can we go through these one by one?\n\n";
     emails.forEach((email, index) => {
       emailSummary += `Email ${index + 1}:\n`;
+      emailSummary += `Email ID: ${email.id}\n`;
       emailSummary += `From: ${email.from}\n`;
       emailSummary += `Subject: ${email.subject}\n`;
       emailSummary += `Snippet: ${email.snippet}\n\n`;

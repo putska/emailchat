@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { cookies } from "next/headers"; // Import cookies utility from Next.js
+import { NextRequest } from "next/server";
 
 // Define the interface for the tokens object
 interface OAuthTokens {
@@ -24,12 +25,15 @@ export const setTokens = (tokens: OAuthTokens) => {
   oauth2Client.setCredentials(tokens); // Apply tokens to the OAuth client
 };
 
-// Retrieve the tokens, and redirect to auth if missing
+// Modify getTokens to accept the request
 export const getTokens = async () => {
-  console.log("entering getTokens");
-  const cookieStore = await cookies(); // Await the cookies Promise
+  const cookieStore = await cookies();
   const accessToken = cookieStore.get("access_token")?.value;
   const refreshToken = cookieStore.get("refresh_token")?.value;
+
+  console.log("Access Token:", accessToken);
+  console.log("Refresh Token:", refreshToken);
+
   if (!accessToken) {
     throw new Error("No access token found. Please authenticate.");
   }

@@ -1,18 +1,28 @@
 // src/app/api/getemails/route.ts
 
 import { google } from "googleapis";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getTokens } from "../../utils/tokens";
 
-export async function GET() {
-  const tokens = await getTokens();
-  if (!tokens.refresh_token || !tokens.access_token) {
+export async function GET(req: NextRequest) {
+  let tokens;
+  try {
+    tokens = await getTokens(); // Use await here
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 401 }
+    );
+  }
+
+  const { access_token, refresh_token } = tokens;
+
+  if (!access_token || !refresh_token) {
     return NextResponse.json(
       { error: "User not authenticated" },
       { status: 401 }
     );
   }
-
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,

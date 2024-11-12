@@ -1,13 +1,9 @@
-// route.ts
 import { NextRequest, NextResponse } from "next/server";
-//import { Configuration, OpenAIApi } from "openai-edge";
 import OpenAI from "openai";
 import { handleFetchUnreadEmails } from "../../utils/handleFetchUnreadEmails";
 import { handleSendReply } from "../../utils/handleSendReply";
+import { handleArchiveEmail } from "../../utils/handleArchiveEmail";
 
-//const config = new Configuration({
-//  apiKey: process.env.OPENAI_API_KEY,
-//});
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -16,7 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json();
     console.log("messages: ", messages);
-    // Make the call to OpenAI's GPT-4 model
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: messages,
@@ -47,6 +43,26 @@ export async function POST(req: NextRequest) {
                 subject: {
                   type: "string",
                   description: "Subject line for the reply email",
+                },
+              },
+              additionalProperties: false,
+            },
+            strict: true,
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "archive_specific_email",
+            description:
+              "Archive a specific email by removing it from the Inbox",
+            parameters: {
+              type: "object",
+              required: ["email_id"],
+              properties: {
+                email_id: {
+                  type: "string",
+                  description: "The unique identifier of the email to archive",
                 },
               },
               additionalProperties: false,
@@ -114,7 +130,7 @@ export async function POST(req: NextRequest) {
           function: {
             name: "archive_email_sender",
             description:
-              "Archive emails from a specific domain by removing them from Inbox",
+              "Filter emails from a specific domain by always removing them from Inbox",
             parameters: {
               type: "object",
               required: ["domain"],
@@ -131,7 +147,6 @@ export async function POST(req: NextRequest) {
           },
         },
       ],
-
       parallel_tool_calls: true,
       response_format: {
         type: "text",
@@ -141,17 +156,19 @@ export async function POST(req: NextRequest) {
     const data = response;
     console.log("response data: ", data);
     const toolCalls = data.choices?.[0]?.message?.tool_calls;
+
     if (toolCalls && toolCalls.length > 0) {
-      // Extract the first tool call
       const functionCall = toolCalls[0];
-      // ensure the type is "function" before proceeding
+
       if (functionCall.type === "function") {
         const functionName = functionCall.function?.name;
         const functionArgs = functionCall.function?.arguments
           ? JSON.parse(functionCall.function.arguments)
           : {};
+
         console.log("Function Name:", functionName);
         console.log("Function Arguments:", functionArgs);
+
         // Route based on function name
         if (functionName === "fetch_unread_emails") {
           return handleFetchUnreadEmails(functionArgs);
@@ -186,6 +203,7 @@ export async function POST(req: NextRequest) {
             `${process.env.NEXT_PUBLIC_BASE_URL}/api/clearemail/${domain}`,
             { method: "POST" }
           );
+
           if (!archiveResponse.ok) {
             console.error(
               "Failed to archive sender:",
@@ -196,8 +214,15 @@ export async function POST(req: NextRequest) {
               { status: 500 }
             );
           }
+
           return NextResponse.json({
             message: `Sender from ${domain} archived successfully.`,
+          });
+        } else if (functionName === "archive_specific_email") {
+          console.log("Archive specific email function detected.");
+          await handleArchiveEmail(functionArgs.email_id);
+          return NextResponse.json({
+            message: `Email archived successfully.`,
           });
         }
       }
@@ -215,14 +240,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
-// fetch_unread_emails({
-//   mailbox_id: "12345",
-//   number_of_emails: 5,
-//   include_attachments: true,})
-
-// send_reply({
-//   "email_address": "steve@division8.com",
-//   "reply_message": "Thank you for reaching out. I will get back to you shortly.",
-//   "subject": "Re: Your Inquiry",
-// })

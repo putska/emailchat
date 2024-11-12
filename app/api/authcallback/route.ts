@@ -21,14 +21,23 @@ export async function GET(req: NextRequest) {
   try {
     const { tokens } = await oauth2Client.getToken(code);
 
-    // Store tokens in a secure, HttpOnly cookie
+    // Define the base URL, falling back to the origin if not specified
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${url.origin}`;
+    console.log("baseUrl: ", baseUrl);
+
+    // Redirect response after setting cookies
     const response = NextResponse.redirect(`${baseUrl}/`);
+
+    // Set both access_token and refresh_token if they exist
     if (tokens.access_token) {
       response.cookies.set("access_token", tokens.access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        maxAge: 3600, // Set expiry if applicable
+        sameSite: "lax",
+        path: "/",
+        maxAge: tokens.expiry_date
+          ? (tokens.expiry_date - Date.now()) / 1000
+          : 3600,
       });
     }
 
@@ -36,7 +45,9 @@ export async function GET(req: NextRequest) {
       response.cookies.set("refresh_token", tokens.refresh_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        maxAge: 30 * 24 * 60 * 60, // Example expiry of 30 days
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30, // Typically 30 days for refresh token
       });
     }
 
@@ -44,7 +55,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("Error exchanging authorization code for tokens:", error);
     return NextResponse.json(
-      { error: "Failed to exchange code for tokens" },
+      { error: "Authorization failed" },
       { status: 500 }
     );
   }
