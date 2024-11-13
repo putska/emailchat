@@ -3,6 +3,9 @@ import OpenAI from "openai";
 import { handleFetchUnreadEmails } from "../../utils/handleFetchUnreadEmails";
 import { handleSendReply } from "../../utils/handleSendReply";
 import { handleArchiveEmail } from "../../utils/handleArchiveEmail";
+import { handleTrashEmailSender } from "../../utils/handleTrashEmailSender";
+import { handleArchiveEmailSender } from "../../utils/handleArchiveEmailSender";
+import { handleTrashEmail } from "../../utils/handleTrashEmail";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -14,7 +17,7 @@ export async function POST(req: NextRequest) {
     console.log("messages: ", messages);
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini", //gpt-4o,
       messages: messages,
       temperature: 1,
       max_tokens: 2048,
@@ -62,7 +65,29 @@ export async function POST(req: NextRequest) {
               properties: {
                 email_id: {
                   type: "string",
-                  description: "The unique identifier of the email to archive",
+                  description:
+                    "The unique identifier of the email to archive. Not the index but the ID of the email.",
+                },
+              },
+              additionalProperties: false,
+            },
+            strict: true,
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "delete_specific_email",
+            description:
+              "Delete a specific email by removing it from the Inbox and putting it in the Trash",
+            parameters: {
+              type: "object",
+              required: ["email_id"],
+              properties: {
+                email_id: {
+                  type: "string",
+                  description:
+                    "The unique identifier of the email to archive.  Not the index but the ID of the email.",
                 },
               },
               additionalProperties: false,
@@ -77,26 +102,12 @@ export async function POST(req: NextRequest) {
             description: "Fetch the last 5 unread emails from a mailbox",
             parameters: {
               type: "object",
-              required: [
-                "mailbox_id",
-                "number_of_emails",
-                "include_attachments",
-              ],
+              required: ["number_of_emails"],
               properties: {
-                mailbox_id: {
-                  type: "string",
-                  description:
-                    "Unique identifier for the mailbox to fetch emails from",
-                },
                 number_of_emails: {
                   type: "number",
                   description:
                     "The number of unread emails to fetch, typically set to 5",
-                },
-                include_attachments: {
-                  type: "boolean",
-                  description:
-                    "Flag to indicate whether to include attachments in the fetched emails",
                 },
               },
               additionalProperties: false,
@@ -109,7 +120,7 @@ export async function POST(req: NextRequest) {
           function: {
             name: "block_email_sender",
             description:
-              "Block emails from a specific domain by moving them to Trash",
+              "Block all future emails from a specific domain by moving them to Trash",
             parameters: {
               type: "object",
               required: ["domain"],
@@ -130,7 +141,7 @@ export async function POST(req: NextRequest) {
           function: {
             name: "archive_email_sender",
             description:
-              "Filter emails from a specific domain by always removing them from Inbox",
+              "Archive or Filter all future emails from a specific domain by always removing them from Inbox",
             parameters: {
               type: "object",
               required: ["domain"],
@@ -171,59 +182,26 @@ export async function POST(req: NextRequest) {
 
         // Route based on function name
         if (functionName === "fetch_unread_emails") {
-          return handleFetchUnreadEmails(functionArgs);
+          const result = await handleFetchUnreadEmails(functionArgs);
+          return NextResponse.json(result);
         } else if (functionName === "send_reply") {
-          return handleSendReply(functionArgs);
+          const result = await handleSendReply(functionArgs);
+          return NextResponse.json(result);
         } else if (functionName === "block_email_sender") {
-          console.log("Block email sender function detected.");
-          const domain = functionArgs.domain;
-          const blockResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/blockemail/${domain}`,
-            { method: "POST" }
-          );
-
-          if (!blockResponse.ok) {
-            console.error(
-              "Failed to block sender:",
-              await blockResponse.text()
-            );
-            return NextResponse.json(
-              { error: "Failed to block sender" },
-              { status: 500 }
-            );
-          }
-
-          return NextResponse.json({
-            message: `Sender from ${domain} blocked successfully.`,
-          });
+          const result = await handleTrashEmailSender(functionArgs.domain);
+          return NextResponse.json(result);
         } else if (functionName === "archive_email_sender") {
           console.log("Archive email sender function detected.");
-          const domain = functionArgs.domain;
-          const archiveResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/clearemail/${domain}`,
-            { method: "POST" }
-          );
-
-          if (!archiveResponse.ok) {
-            console.error(
-              "Failed to archive sender:",
-              await archiveResponse.text()
-            );
-            return NextResponse.json(
-              { error: "Failed to archive sender" },
-              { status: 500 }
-            );
-          }
-
-          return NextResponse.json({
-            message: `Sender from ${domain} archived successfully.`,
-          });
+          const result = await handleArchiveEmailSender(functionArgs.domain);
+          return NextResponse.json(result);
         } else if (functionName === "archive_specific_email") {
           console.log("Archive specific email function detected.");
-          await handleArchiveEmail(functionArgs.email_id);
-          return NextResponse.json({
-            message: `Email archived successfully.`,
-          });
+          const result = await handleArchiveEmail(functionArgs.email_id);
+          return NextResponse.json(result);
+        } else if (functionName === "delete_specific_email") {
+          console.log("Delete specific email function detected.");
+          const result = await handleTrashEmail(functionArgs.email_id);
+          return NextResponse.json(result);
         }
       }
     } else {
@@ -231,7 +209,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Send back the response in JSON format
-    return NextResponse.json(data);
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error in API route:", error);
     return NextResponse.json(

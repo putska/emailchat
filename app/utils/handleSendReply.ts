@@ -1,8 +1,6 @@
 // src/lib/handleSendReply.ts
 
-import { google } from "googleapis";
-import { NextResponse } from "next/server";
-import { getTokens } from "../utils/tokens"; // Update path based on your setup
+import { getGmailClient } from "../utils/tokens"; // Update path based on your setup
 
 interface SendReplyParams {
   email_address: string;
@@ -15,38 +13,25 @@ export async function handleSendReply({
   reply_message,
   subject,
 }: SendReplyParams) {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.NEXT_PUBLIC_REDIRECT_URI
-  );
-
-  const tokens = await getTokens(); // Retrieve tokens as before
-  if (!tokens) {
-    return NextResponse.json(
-      { error: "User not authenticated" },
-      { status: 401 }
-    );
-  }
-  oauth2Client.setCredentials(tokens);
-
-  const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
   try {
+    const gmail = await getGmailClient(); // Get the configured Gmail client
+
+    // Create raw email content and encode it as URL-safe Base64
+    const rawMessage = `To: ${email_address}\r\nSubject: ${subject}\r\n\r\n${reply_message}`;
+    const encodedMessage = Buffer.from(rawMessage)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, ""); // Remove any padding characters
+
     await gmail.users.messages.send({
       userId: "me",
       requestBody: {
-        raw: Buffer.from(
-          `To: ${email_address}\r\nSubject: ${subject}\r\n\r\n${reply_message}`
-        ).toString("base64"),
+        raw: encodedMessage,
       },
     });
-    return NextResponse.json({ message: "Reply sent successfully" });
   } catch (error) {
     console.error("Error sending email:", error);
-    return NextResponse.json(
-      { error: "Failed to send email" },
-      { status: 500 }
-    );
+    throw new Error("Failed to send email"); // Throw error instead of returning a response
   }
 }

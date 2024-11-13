@@ -73,32 +73,35 @@ export default function Chat() {
 
       const data = await response.json();
       console.log("data in front end: ", data);
-      // Check if response contains an array of emails
-      if (
+
+      // Handle responses based on structure
+      if (data.success) {
+        // Handle success message for non-conversational API responses
+        const botMessage = {
+          role: "assistant",
+          content: data.message,
+        };
+        setMessages((prevMessages) => [...prevMessages, botMessage]);
+      } else if (
         Array.isArray(data) &&
         data.length > 0 &&
         data[0].from &&
-        data[0]?.subject
+        data[0].subject
       ) {
-        setEmails(data); // set emails to state for displaying
-
-        // Format emails for OpenAI
+        // Handle emails array
+        setEmails(data);
         const emailSummary = formatEmailsForOpenAI(data);
-        const botMessage = {
-          role: "assistant",
-          content: emailSummary,
-        };
+        const botMessage = { role: "assistant", content: emailSummary };
         setMessages((prevMessages) => [...prevMessages, botMessage]);
 
-        // Send this to openAI for further conversation
-        const response = await fetch("/api/chatWithFunctions", {
+        // Send formatted emails to OpenAI for further conversation
+        const aiResponse = await fetch("/api/chatWithFunctions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: [...messages, botMessage] }),
         });
 
-        const openAIData = await response.json();
-        console.log("data in front end: ", openAIData);
+        const openAIData = await aiResponse.json();
         if (openAIData.choices && openAIData.choices.length > 0) {
           const botMessage = {
             role: "assistant",
@@ -109,10 +112,9 @@ export default function Chat() {
           if (useTTS) {
             await playTextAsSpeech(botMessage.content);
           }
-        } else {
-          console.error("Unexpected API response:", openAIData);
         }
       } else if (data.choices && data.choices.length > 0) {
+        // Handle OpenAI conversational response
         const botMessage = {
           role: "assistant",
           content: data.choices[0].message.content,
@@ -120,7 +122,6 @@ export default function Chat() {
         setMessages((prevMessages) => [...prevMessages, botMessage]);
 
         if (useTTS) {
-          // Trigger TTS for the assistant's response
           await playTextAsSpeech(botMessage.content);
         }
       } else {
@@ -165,31 +166,6 @@ export default function Chat() {
           </CardContent>
         </Card>
       ))}
-      {/* Display Fetched Emails */}
-      {emails.length > 0 && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>Emails</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {emails.map((email, index) => (
-              <Card key={index} className="mb-4">
-                <CardHeader>
-                  <CardTitle>{email.from}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>
-                    <strong>Subject:</strong> {email.subject}
-                  </CardDescription>
-                  <CardDescription>
-                    <strong>Snippet:</strong> {email.snippet}
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       <div className="flex items-center mb-4">
         <input

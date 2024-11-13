@@ -2,8 +2,8 @@
 import { google } from "googleapis";
 import { getGmailClient } from "./tokens";
 
-export async function handleArchiveEmail(emailId: string) {
-  console.log("Entering handleArchiveEmail");
+export async function handleTrashEmail(emailId: string) {
+  console.log("Entering handleTrashEmail");
   console.log("emailId: ", emailId);
 
   try {
@@ -15,15 +15,15 @@ export async function handleArchiveEmail(emailId: string) {
       id: emailId,
       requestBody: {
         removeLabelIds: ["INBOX"],
+        addLabelIds: ["TRASH"],
       },
     });
-
-    return { success: true, message: "Email archived successfully" };
+    return { success: true, message: "Email deleted successfully" };
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(error.message || "Failed to archive email");
+      throw new Error(error.message || "Failed to trash email");
     } else {
-      throw new Error("Failed to archive email");
+      throw new Error("Failed to trash email");
     }
   }
 }

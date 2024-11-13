@@ -1,8 +1,6 @@
 // src/lib/handleFetchUnreadEmails.ts
 
-import { google } from "googleapis";
-import { NextResponse } from "next/server";
-import { getTokens } from "../utils/tokens"; // Update path based on your setup
+import { getGmailClient } from "../utils/tokens"; // Update path based on your setup
 
 interface FetchUnreadEmailsParams {
   number_of_emails?: number;
@@ -10,37 +8,13 @@ interface FetchUnreadEmailsParams {
 
 export async function handleFetchUnreadEmails(params: FetchUnreadEmailsParams) {
   console.log("Entering handleFetchUnreadEmails");
-  let tokens;
-  try {
-    tokens = await getTokens(); // Use await here
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 401 }
-    );
-  }
-
-  const { access_token, refresh_token } = tokens;
-
-  if (!access_token || !refresh_token) {
-    return NextResponse.json(
-      { error: "User not authenticated" },
-      { status: 401 }
-    );
-  }
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.NEXT_PUBLIC_REDIRECT_URI
-  );
-  oauth2Client.setCredentials({ access_token, refresh_token });
-
-  const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
   try {
+    const gmail = await getGmailClient(); // Get the configured Gmail client
+
     const response = await gmail.users.messages.list({
       userId: "me",
-      q: "is:unread",
+      q: "is:unread in:inbox", // This restricts the query to unread emails in the INBOX
       maxResults: params.number_of_emails || 5,
     });
 
@@ -67,15 +41,10 @@ export async function handleFetchUnreadEmails(params: FetchUnreadEmailsParams) {
       })
     );
 
-    return NextResponse.json(
-      emailData.filter((data) => data !== null),
-      { status: 200 }
-    );
+    // Return email data directly instead of using NextResponse.json
+    return emailData.filter((data) => data !== null);
   } catch (error) {
     console.error("Error fetching emails:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch emails" },
-      { status: 500 }
-    );
+    throw new Error("Failed to fetch emails"); // Throw error instead of returning a response
   }
 }
